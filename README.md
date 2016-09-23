@@ -32,3 +32,9 @@ Go to localhost:8000 in a browser and sign in.
 in a terminal run ```php checkToken.php``` to check if token is active/expired
 
 in a terminal run ```php queryGA.php``` to query google analytics
+
+## To do
+- Store Query Results into a Database
+- Clean up code
+- (Maybe) checkToken.php needs to loop through all access_token/refresh_tokens
+- (Maybe) queryGA.php needs to loop through all view_id/access_token/refresh_token 
