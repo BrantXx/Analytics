@@ -3,6 +3,9 @@ require_once __DIR__.'/google-api-php-client/vendor/autoload.php';
 
 session_start();
 
+//if($row_data[0] == "google " or $row_data[0] == "bing " or $row_data[0] == "yahoo "){
+//if($row_data[1] == " referral" or $row_data[1] == " cpc" or $row_data[1] == " organic"){ #This is for Paid/Referral/Organic
+
 $servername = "localhost";
 $username = "root";
 $password = "root";
@@ -46,28 +49,24 @@ function getResults($analytics, $profileId) {
 }
 
 function printResults($results) {
-  if (count($results->getRows()) > 0) {
-    $rows = $results->getRows();
-      foreach($rows as $row){
+	if (count($results->getRows()) > 0) {
+		$rows = $results->getRows();
+		foreach($rows as $row){
 		    $row_data = explode("/", $row[0]);
-		    if($row_data[0] == "google " or $row_data[0] == "bing " or $row_data[0] == "yahoo "){
-			    //if($row_data[1] == " referral" or $row_data[1] == " cpc" or $row_data[1] == " organic"){ #This is for Paid/Referral/Organic
-				if($row_data[1] == " organic"){
-
-					$lastMonth = date("d-m-Y", strtotime( date( "d-m-Y", strtotime( date("d-m-Y") ) ) . "-1 month" ) );
-					$now = date("d-m-Y", strtotime( date( "d-m-Y", strtotime( date("d-m-Y") ) ) . "today" ) );
-
-    				print "\n";
-					print "Landing page : " . $row[1] . "\n";
-					print "Number of Sessions : " . $row[2] . "\n";
-					print "Channel : " . $row[0] . "\n";
-					print "Date Range (DD/MM/YYYY) - From " . $lastMonth . " to " . $now . "\n";
+			if($row_data[1] == " organic"){
+				$lastMonth = date("d-m-Y", strtotime( date( "d-m-Y", strtotime( date("d-m-Y") ) ) . "-1 month" ) );
+				$now = date("d-m-Y", strtotime( date( "d-m-Y", strtotime( date("d-m-Y") ) ) . "today" ) );
+				print "\n";
+				print "Landing page : " . $row[1] . "\n";
+				print "Number of Sessions : " . $row[2] . "\n";
+				print "Channel : " . $row[0] . "\n";
+				print "Date Range (DD/MM/YYYY) - From " . $lastMonth . " to " . $now . "\n";
 			}
+		
 		}
+ 	}else{
+		print "<p>No results found.</p>";
 	}
-  } else {
-	print "<p>No results found.</p>";
-  }
 }
 
 if(!$client->isAccessTokenExpired()){
