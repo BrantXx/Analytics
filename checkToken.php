@@ -36,22 +36,24 @@ $oldTokenforGoogle = json_encode(array("access_token" => $oldToken, "token_type"
 $setOldToken = $client->setAccessToken($oldTokenforGoogle);
 
 if($client->isAccessTokenExpired()){
-	print "Token is Expired! Refreshing! <br>";
+	if ($refreshToken == NULL){
+		echo "Refresh Token is empty!! \nCan't refresh without one.";
+	}else{
+		print "Token is Expired! Refreshing! <br>";
+		print "We have a refresh token : " . $refreshToken;
+		$client->refreshToken($refreshToken);
+		$newtoken = $client->getAccessToken();
+		$sql = "UPDATE analytics_info SET access_token = '".$newtoken["access_token"]."', created = '".$newtoken["created"]."' WHERE access_token = '".$oldToken."';";
 
-	$client->refreshToken($refreshToken);
-
-	$newtoken = $client->getAccessToken();
-
-	$sql = "UPDATE analytics_info SET access_token = '".$newtoken["access_token"]."', created = '".$newtoken["created"]."' WHERE access_token = '".$oldToken."';";
-
-	if ($conn->query($sql) === TRUE) {
-		echo "old token : " . $oldToken . "<br>";
-		echo "new token : " . $newtoken["access_token"] . "<br>";
-		echo "old create : " . $created . "<br>";
-		echo "new create : " . $newtoken["created"];
-	} else {
-		echo "<br>";
-		echo "Error: " . $sql . "<br>" . $conn->error;
+		if ($conn->query($sql) === TRUE) {
+			echo "old token : " . $oldToken . "<br>";
+			echo "new token : " . $newtoken["access_token"] . "<br>";
+			echo "old create : " . $created . "<br>";
+			echo "new create : " . $newtoken["created"];
+		} else {
+			echo "<br>";
+			echo "Error: " . $sql . "<br>" . $conn->error;
+		}
 	}
 }else{
 	print "Token is not expired! No refresh needed";

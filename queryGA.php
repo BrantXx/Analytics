@@ -36,12 +36,12 @@ $accessToken = $client->getAccessToken();
 $analytics = new Google_Service_Analytics($client);
 
 function getResults($analytics, $profileId) {
-  return $analytics->data_ga->get( # <-------------- errors here
+  return $analytics->data_ga->get(
       'ga:' . $profileId,
       '30daysAgo',
       'today',
-      'ga:pageviews',
-      array('dimensions' => 'ga:sourceMedium')
+      'ga:sessions',
+      array('dimensions' => 'ga:sourceMedium,ga:landingPagePath')
     );
 }
 
@@ -51,11 +51,17 @@ function printResults($results) {
       foreach($rows as $row){
 		    $row_data = explode("/", $row[0]);
 		    if($row_data[0] == "google " or $row_data[0] == "bing " or $row_data[0] == "yahoo "){
-			    if($row_data[1] == " referral" or $row_data[1] == " cpc" or $row_data[1] == " organic"){
-					print $row[0];
-    					print "\n";
-	    				print "page views : " . $row[1];
-	    				print "\n \n";
+			    //if($row_data[1] == " referral" or $row_data[1] == " cpc" or $row_data[1] == " organic"){ #This is for Paid/Referral/Organic
+				if($row_data[1] == " organic"){
+
+					$lastMonth = date("d-m-Y", strtotime( date( "d-m-Y", strtotime( date("d-m-Y") ) ) . "-1 month" ) );
+					$now = date("d-m-Y", strtotime( date( "d-m-Y", strtotime( date("d-m-Y") ) ) . "today" ) );
+
+    				print "\n";
+					print "Landing page : " . $row[1] . "\n";
+					print "Number of Sessions : " . $row[2] . "\n";
+					print "Channel : " . $row[0] . "\n";
+					print "Date Range (DD/MM/YYYY) - From " . $lastMonth . " to " . $now . "\n";
 			}
 		}
 	}
