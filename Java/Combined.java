@@ -55,7 +55,7 @@ public class Combined {
 			// The request will check if the access token is valid(if it has expires_in) or invalid(revoked,expired with a 400 "Bad Request"
 			// If the token is 400'd then try to get another token from the refresh token. If no access token is returned from the refresh token, it was revoked or the token isn't real.
 			// If the token is refreshed and a new access token is provided, return the new token(we'll also need to store this token for future checks)
-			// Send the returnFromCheck to checkBeforeSendTokenToQuery which will hold the string "revoked" if invalid, or it will hold the new access token if the refresh was successful.
+			// Send the returnFromCheck to checkBeforeSendTokenToQuery which will hold the string "fail" if invalid, or it will hold the new access token if the refresh was successful.
 			// If revoked, ??
 			// If access token, then send it to PassTokenToQuery which will set up the Analytics object with the access token, send the object to getReports(query), and print the response.
 			
@@ -69,13 +69,13 @@ public class Combined {
 		}
 	}
 	
-	private static String checkBeforeSendTokenToQuery(String accessToken) throws GeneralSecurityException, IOException{
-		if(accessToken == "revoked"){
+	private static void checkBeforeSendTokenToQuery(String accessToken) throws GeneralSecurityException, IOException{
+		if(accessToken == "fail"){
 			System.out.println("access_token was revoked by the user");
-			return "access_token was revoked by the user";
+			return;
 		}else{
 			passTokenToQuery(accessToken);
-			return "Sent Token to Query";
+			System.out.println("Sent Token to Query");
 		}
 	}
 	
@@ -84,7 +84,7 @@ public class Combined {
 			// Token is Invalid(Expired or Revoked). Refresh it anyway, if we get an access token back, it was expired, if not its been revoked. 
 			credential.refreshToken();
 			if(credential.getAccessToken() == null){
-				return "revoked";
+				return "fail";
 			}else{
 				// Update the old token in the database with the new token.
 				// passTokenToQuery(credential.getAccessToken());
