@@ -50,36 +50,62 @@ public class Combined {
 
 	public static void main(String[] args) {
 		try{
+			// Set up the credential, and the request.
+			// The credential will hold the access token and refresh token
+			// The request will check if the access token is valid(if it has expires_in) or invalid(revoked,expired with a 400 "Bad Request"
+			// If the token is 400'd then try to get another token from the refresh token. If no access token is returned from the refresh token, it was revoked or the token isn't real.
+			// If the token is refreshed and a new access token is provided, return the new token(we'll also need to store this token for future checks)
+			// Send the returnFromCheck to checkBeforeSendTokenToQuery which will hold the string "revoked" if invalid, or it will hold the new access token if the refresh was successful.
+			// If revoked, ??
+			// If access token, then send it to PassTokenToQuery which will set up the Analytics object with the access token, send the object to getReports(query), and print the response.
+			
 			GoogleCredential credential = setUpCredentials();
 			HttpURLConnection request = setUpRequest();
+			String returnFromCheck = checkTokenFromRequest(request,credential);
+			checkBeforeSendTokenToQuery(returnFromCheck);
 			
-			if(request.getResponseCode() == 400){
-				// Token is Invalid(Expired or Revoked). Refresh it anyway, if we get an access token back, it was expired, if not its been revoked. 
-				credential.refreshToken();
-				if(credential.getAccessToken() == null){
-					System.out.println("Token was Revoked!");
-				}else{
-					System.out.println("Token was Expired!");
-					// Update the old token in the database with the new token.
-					// passTokenToQuery(credential.getAccessToken());
-				}
-			}else{
-				JsonParser jp = new JsonParser();
-				JsonElement root = jp.parse(new InputStreamReader((InputStream) request.getContent()));
-				JsonObject rootobj = root.getAsJsonObject();
-				int exp_time = rootobj.get("expires_in").getAsInt();
-				if(exp_time <= 60){
-					credential.refreshToken();
-					// Update the old token in the database with the new token.
-					// passTokenToQuery(credential.getAccessToken());
-				}else{
-					System.out.println("We do not need to do a refresh. Run query!");
-					passTokenToQuery(ACCESS_TOKEN);
-				}
-			}
 		}catch (Exception e){
 			e.printStackTrace();
 		}
+	}
+	
+	private static String checkBeforeSendTokenToQuery(String accessToken) throws GeneralSecurityException, IOException{
+		if(accessToken == "revoked"){
+			System.out.println("access_token was revoked by the user");
+			return "access_token was revoked by the user";
+		}else{
+			passTokenToQuery(accessToken);
+			return "Sent Token to Query";
+		}
+	}
+	
+	private static String checkTokenFromRequest(HttpURLConnection request, GoogleCredential credential) throws GeneralSecurityException, IOException{
+		if(request.getResponseCode() == 400){
+			// Token is Invalid(Expired or Revoked). Refresh it anyway, if we get an access token back, it was expired, if not its been revoked. 
+			credential.refreshToken();
+			if(credential.getAccessToken() == null){
+				return "revoked";
+			}else{
+				// Update the old token in the database with the new token.
+				// passTokenToQuery(credential.getAccessToken());
+				// return "new_access_token";
+			}
+		}else{
+			JsonParser jp = new JsonParser();
+			JsonElement root = jp.parse(new InputStreamReader((InputStream) request.getContent()));
+			JsonObject rootobj = root.getAsJsonObject();
+			int exp_time = rootobj.get("expires_in").getAsInt();
+			if(exp_time <= 60){
+				credential.refreshToken();
+				// Update the old token in the database with the new token.
+				// passTokenToQuery(credential.getAccessToken());
+				// return "new_access_token";
+			}else{
+				passTokenToQuery(ACCESS_TOKEN);
+				return ACCESS_TOKEN;
+			}
+		}
+		return "fail";
 	}
 	
 	private static GoogleCredential setUpCredentials() throws GeneralSecurityException, IOException{
