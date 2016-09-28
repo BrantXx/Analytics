@@ -37,112 +37,139 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 public class Combined {
-	// ACCESS_TOKEN, REFRESH_TOKEN, and VIEW_ID need to come from the database.
-	private static String ACCESS_TOKEN = "";
-	private static String REFRESH_TOKEN = "";
-	private static final String VIEW_ID = "";
-	
-	private static final String CLIENT_SECRET = "client_secrets.json";
-	private static final String APPLICATION_NAME = "TheLandscape.io";
-	private static NetHttpTransport HTTP_TRANSPORT;
-	private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
-	
 
-	public static void main(String[] args) {
+	private String ACCESS_TOKEN;
+	private String REFRESH_TOKEN;
+	private String VIEW_ID;
+	
+	private final String CLIENT_SECRET = "client_secrets.json";
+	private final String APPLICATION_NAME = "TheLandscape.io";
+	private NetHttpTransport HTTP_TRANSPORT;
+	private JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
+	
+	public void setAccessToken(String accessToken){
+		this.ACCESS_TOKEN = accessToken;
+	}
+	
+	public String getAccessToken(){
+		return this.ACCESS_TOKEN;
+	}
+	
+	public void setRefreshToken(String refreshToken){
+		this.REFRESH_TOKEN = refreshToken;
+	}
+	
+	public String getRefreshToken(){
+		return this.REFRESH_TOKEN;
+	}
+
+	public void setViewID(String viewID){
+		this.VIEW_ID = viewID;
+	}
+	
+	public String getViewID(){
+		return this.VIEW_ID;
+	}
+	
+	public void run(String accessToken, String refreshToken, String viewID) throws GeneralSecurityException, IOException{
+		System.out.println("Running...");
+		GoogleCredential credential = setUpCredentials(accessToken, refreshToken);
+		HttpURLConnection request = setUpRequest(accessToken);
+		checkRequest(request,credential,accessToken);
+		runQuery(this.getAccessToken(),this.getViewID());
+	}
+	
+	private GoogleCredential setUpCredentials(String accessToken, String refreshToken) throws GeneralSecurityException, IOException{
 		try{
-			// Set up the credential, and the request.
-			// The credential will hold the access token and refresh token
-			// The request will check if the access token is valid(if it has expires_in) or invalid(revoked,expired with a 400 "Bad Request"
-			// If the token is 400'd then try to get another token from the refresh token. If no access token is returned from the refresh token, it was revoked or the token isn't real.
-			// If the token is refreshed and a new access token is provided, return the new token(we'll also need to store this token for future checks)
-			// Send the returnFromCheck to checkBeforeSendTokenToQuery which will hold the string "fail" if invalid, or it will hold the new access token if the refresh was successful.
-			// If revoked, ??
-			// If access token, then send it to PassTokenToQuery which will set up the Analytics object with the access token, send the object to getReports(query), and print the response.
-			
-			GoogleCredential credential = setUpCredentials();
-			HttpURLConnection request = setUpRequest();
-			String returnFromCheck = checkTokenFromRequest(request,credential);
-			checkBeforeSendTokenToQuery(returnFromCheck);
-			
-		}catch (Exception e){
-			e.printStackTrace();
+			HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
+			GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(JSON_FACTORY,new InputStreamReader(Combined.class.getResourceAsStream(CLIENT_SECRET)));
+			GoogleCredential credential = new GoogleCredential.Builder()
+				.setClientSecrets(clientSecrets)
+				.setTransport(HTTP_TRANSPORT)
+				.setJsonFactory(JSON_FACTORY)
+				.build();
+					
+			credential.setAccessToken(accessToken);
+			credential.setRefreshToken(refreshToken);
+			System.out.println("We set up credentials!");
+			return credential;
+		}catch(IOException e){
+			System.out.println("Could not set up credentials!");
+			System.out.println("Error : " + e.getMessage());
+			return null;
 		}
 	}
 	
-	private static void checkBeforeSendTokenToQuery(String accessToken) throws GeneralSecurityException, IOException{
-		if(accessToken == "fail"){
-			System.out.println("access_token was revoked by the user");
-			return;
-		}else{
-			passTokenToQuery(accessToken);
-			System.out.println("Sent Token to Query");
+	private HttpURLConnection setUpRequest(String accessToken) throws GeneralSecurityException, IOException{
+		try{
+			String token_check_url = "https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=" + accessToken;
+			URL url = new URL(token_check_url);
+			HttpURLConnection request = (HttpURLConnection) url.openConnection();
+			request.connect();
+			System.out.println("We set up and connected a request!");
+			return request;
+		}catch(IOException e){
+			System.out.println("Could not set up a request!");
+			System.out.println("Error : " + e.getMessage());
+			return null;
 		}
 	}
 	
-	private static String checkTokenFromRequest(HttpURLConnection request, GoogleCredential credential) throws GeneralSecurityException, IOException{
-		if(request.getResponseCode() == 400){
-			// Token is Invalid(Expired or Revoked). Refresh it anyway, if we get an access token back, it was expired, if not its been revoked. 
-			credential.refreshToken();
-			if(credential.getAccessToken() == null){
-				return "fail";
-			}else{
-				// Update the old token in the database with the new token.
-				// passTokenToQuery(credential.getAccessToken());
-				// return "new_access_token";
-			}
-		}else{
+	private String checkRequest(HttpURLConnection request, GoogleCredential credential, String accessToken) throws GeneralSecurityException, IOException{
+		try{
+			request.getContent();
 			JsonParser jp = new JsonParser();
 			JsonElement root = jp.parse(new InputStreamReader((InputStream) request.getContent()));
 			JsonObject rootobj = root.getAsJsonObject();
 			int exp_time = rootobj.get("expires_in").getAsInt();
+			
+			System.out.println("We got token info!");
+			
+			// If token is not expired but has 60 seconds or less left, refresh. Anything more and we just return the token we started with.
 			if(exp_time <= 60){
-				credential.refreshToken();
-				// Update the old token in the database with the new token.
-				// passTokenToQuery(credential.getAccessToken());
-				// return "new_access_token";
+				System.out.println("Token is going to expire in less than 60 seconds. Sending token to refresh()");
+				this.setAccessToken(refreshAccessToken(credential));
+				return this.getAccessToken();
 			}else{
-				passTokenToQuery(ACCESS_TOKEN);
-				return ACCESS_TOKEN;
+				System.out.println("Token is fine! Returning original access token");
+				return this.getAccessToken();
 			}
+			
+		}catch(IOException e){
+			// We received a request error, send to refresh
+			System.out.println("We received an error, Most likely expired! Sending token to refresh()");
+			this.setAccessToken(refreshAccessToken(credential));
+			return this.getAccessToken();
 		}
-		return "fail";
 	}
 	
-	private static GoogleCredential setUpCredentials() throws GeneralSecurityException, IOException{
-		HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-		GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(JSON_FACTORY,new InputStreamReader(Combined.class.getResourceAsStream(CLIENT_SECRET)));
-		GoogleCredential credential = new GoogleCredential.Builder()
-			.setClientSecrets(clientSecrets)
-			.setTransport(HTTP_TRANSPORT)
-			.setJsonFactory(JSON_FACTORY)
-			.build();
-		
-		credential.setAccessToken(ACCESS_TOKEN);
-		credential.setRefreshToken(REFRESH_TOKEN);
-		return credential;
+	private String refreshAccessToken(GoogleCredential credential) throws IOException{
+		System.out.println("Running refreshAccessToken and returning a new Access Token!");
+		credential.refreshToken();
+		this.setAccessToken(credential.getAccessToken());
+		System.out.println("New access token is : " + this.getAccessToken());
+		return this.getAccessToken();
 	}
 	
-	private static HttpURLConnection setUpRequest() throws GeneralSecurityException, IOException{
-		String token_check_url = "https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=" + ACCESS_TOKEN;
-		URL url = new URL(token_check_url);
-		HttpURLConnection request = (HttpURLConnection) url.openConnection();
-		request.connect();
-		return request;
+	private void runQuery(String accessToken, String viewID) throws GeneralSecurityException, IOException{
+		try{
+			System.out.println("Running the query!");
+			AnalyticsReporting service = initializeAnalyticsReporting(accessToken);
+			GetReportsResponse response = getReport(service);
+			printResponse(response,this.getViewID());
+		}catch(IOException e){
+			System.out.println("Could not run the query");
+			System.out.println("Error : " + e.getMessage());
+		}
 	}
 	
-	private static void passTokenToQuery(String accessToken) throws GeneralSecurityException, IOException{
-		AnalyticsReporting service = initializeAnalyticsReporting(accessToken);
-		GetReportsResponse response = getReport(service);
-		printResponse(response);
-	}
-	
-	private static AnalyticsReporting initializeAnalyticsReporting(String accessToken) throws GeneralSecurityException, IOException {
+	private AnalyticsReporting initializeAnalyticsReporting(String accessToken) throws GeneralSecurityException, IOException {
 		HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
 		Credential credential = new Credential(BearerToken.authorizationHeaderAccessMethod()).setAccessToken(accessToken);
 		return new AnalyticsReporting.Builder(HTTP_TRANSPORT, JSON_FACTORY, credential).setApplicationName(APPLICATION_NAME).build();
 	  }
 
-	private static GetReportsResponse getReport(AnalyticsReporting service) throws IOException {
+	private GetReportsResponse getReport(AnalyticsReporting service) throws IOException {
 		DateRange dateRange = new DateRange();
 		dateRange.setStartDate("30DaysAgo");
 		dateRange.setEndDate("today");
@@ -158,7 +185,7 @@ public class Combined {
 		.setName("ga:medium");
 		
 		ReportRequest request = new ReportRequest()
-			.setViewId(VIEW_ID)
+			.setViewId(this.VIEW_ID)
 			.setDateRanges(Arrays.asList(dateRange))
 			.setDimensions(Arrays.asList(landingpage,medium))
 			.setMetrics(Arrays.asList(sessions))
@@ -175,7 +202,7 @@ public class Combined {
 		return response;
 	}
 
-	private static void printResponse(GetReportsResponse response) {	  
+	private void printResponse(GetReportsResponse response,String viewID) {
 		for (Report report: response.getReports()) {
 			ColumnHeader header = report.getColumnHeader();
 			List<String> dimensionHeaders = header.getDimensions();
@@ -183,7 +210,7 @@ public class Combined {
 			List<ReportRow> rows = report.getData().getRows();
 
 			if (rows == null) {
-				System.out.println("No data found for " + VIEW_ID);
+				System.out.println("No data found for " + viewID);
 				return;
 			}
 				
@@ -211,4 +238,23 @@ public class Combined {
 			System.out.println("From " + lastMonthDate + " to " + currentDate);		
   		}
 	}
+
+	
+	
+	public static void main(String[] args) throws GeneralSecurityException, IOException {
+		
+		Combined analytics = new Combined();
+		
+		analytics.setAccessToken("");
+		analytics.setRefreshToken("");
+		analytics.setViewID("");
+		
+		String accessToken = analytics.getAccessToken();
+		String refreshToken = analytics.getRefreshToken();
+		String viewID = analytics.getViewID();
+		
+		analytics.run(accessToken,refreshToken,viewID);
+		
+	}
+
 }
