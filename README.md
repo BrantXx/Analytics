@@ -21,6 +21,8 @@ CREATE TABLE `analyticsTest`.`analytics_info` (
   PRIMARY KEY (`view_id`));
 ```
 
+Then continue the installation for whichever language below.
+
 ## Installation for PHP
 Run this
 
@@ -44,9 +46,12 @@ Get the client_secrets.json from my H-starter clone : /brant/Analytics/client_se
 Extract google-api-services-analyticsreporting-v4-rev11-1.22.0.jar and /libs/ where Combined.java is.
 
 In a terminal run : 
+
 ``` javac -cp "*:./libs/*" Combined.java ```
+
 ``` java -classpath ".:*:./libs/*" Combined ```
 
 ## To do
 - Store Query Results into a Database
+- Store Access Token into a database(Java Only)
 - Clean up code
