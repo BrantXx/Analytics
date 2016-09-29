@@ -36,5 +36,3 @@ in a terminal run ```php queryGA.php``` to query google analytics
 ## To do
 - Store Query Results into a Database
 - Clean up code
-- (Maybe) checkToken.php needs to loop through all access_token/refresh_tokens
-- (Maybe) queryGA.php needs to loop through all view_id/access_token/refresh_token 
