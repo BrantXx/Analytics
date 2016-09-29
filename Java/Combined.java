@@ -71,12 +71,13 @@ public class Combined {
 		return this.VIEW_ID;
 	}
 	
-	public void run(String accessToken, String refreshToken, String viewID) throws GeneralSecurityException, IOException{
+	public String run(String accessToken, String refreshToken, String viewID) throws GeneralSecurityException, IOException{
 		System.out.println("Running...");
 		GoogleCredential credential = setUpCredentials(accessToken, refreshToken);
 		HttpURLConnection request = setUpRequest(accessToken);
 		checkRequest(request,credential,accessToken);
-		runQuery(this.getAccessToken(),this.getViewID());
+		return runQuery(this.getAccessToken(),this.getViewID());
+		
 	}
 	
 	private GoogleCredential setUpCredentials(String accessToken, String refreshToken) throws GeneralSecurityException, IOException{
@@ -138,28 +139,40 @@ public class Combined {
 		}catch(IOException e){
 			// We received a request error, send to refresh
 			System.out.println("We received an error, Most likely expired! Sending token to refresh()");
-			this.setAccessToken(refreshAccessToken(credential));
-			return this.getAccessToken();
+			String newToken = refreshAccessToken(credential);
+			if(newToken == null){
+				System.out.println("Failed to get new token");
+				return null;
+			}else{				
+				this.setAccessToken(newToken);
+				return this.getAccessToken();
+			}
 		}
 	}
 	
 	private String refreshAccessToken(GoogleCredential credential) throws IOException{
-		System.out.println("Running refreshAccessToken and returning a new Access Token!");
-		credential.refreshToken();
-		this.setAccessToken(credential.getAccessToken());
-		System.out.println("New access token is : " + this.getAccessToken());
-		return this.getAccessToken();
+		try{
+			System.out.println("Running refreshAccessToken and returning a new Access Token!");
+			credential.refreshToken();
+			this.setAccessToken(credential.getAccessToken());
+			System.out.println("New access token is : " + this.getAccessToken());
+			return this.getAccessToken();
+		}catch(IOException e){
+			System.out.println("Token was not able to be refreshed either because the access token is revoked/invalid or because the refresh token is wrong.");
+			return null;
+		}
 	}
 	
-	private void runQuery(String accessToken, String viewID) throws GeneralSecurityException, IOException{
+	private String runQuery(String accessToken, String viewID) throws GeneralSecurityException, IOException{
 		try{
-			System.out.println("Running the query!");
+			System.out.println("Trying to run the query!");
 			AnalyticsReporting service = initializeAnalyticsReporting(accessToken);
 			GetReportsResponse response = getReport(service);
 			printResponse(response,this.getViewID());
+			return "Ran";
 		}catch(IOException e){
 			System.out.println("Could not run the query");
-			System.out.println("Error : " + e.getMessage());
+			return ("Error : " + e.getMessage());
 		}
 	}
 	
@@ -235,7 +248,7 @@ public class Combined {
 			String currentDate = dateFormat.format(cal.getTime());
 			cal.add(Calendar.MONTH, -1);
 			String lastMonthDate = dateFormat.format(cal.getTime());
-			System.out.println("From " + lastMonthDate + " to " + currentDate);		
+			System.out.println("From " + lastMonthDate + " to " + currentDate);
   		}
 	}
 
