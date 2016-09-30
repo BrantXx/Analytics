@@ -1,95 +1,85 @@
-import java.io.IOException;
-import java.security.GeneralSecurityException;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.List;
-
 import com.google.api.client.auth.oauth2.BearerToken;
 import com.google.api.client.auth.oauth2.Credential;
+import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets;
+import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.analyticsreporting.v4.AnalyticsReporting;
-import com.google.api.services.analyticsreporting.v4.model.ColumnHeader;
-import com.google.api.services.analyticsreporting.v4.model.DateRange;
-import com.google.api.services.analyticsreporting.v4.model.DateRangeValues;
-import com.google.api.services.analyticsreporting.v4.model.Dimension;
-import com.google.api.services.analyticsreporting.v4.model.GetReportsRequest;
-import com.google.api.services.analyticsreporting.v4.model.GetReportsResponse;
-import com.google.api.services.analyticsreporting.v4.model.Metric;
-import com.google.api.services.analyticsreporting.v4.model.MetricHeaderEntry;
-import com.google.api.services.analyticsreporting.v4.model.Report;
-import com.google.api.services.analyticsreporting.v4.model.ReportRequest;
-import com.google.api.services.analyticsreporting.v4.model.ReportRow;
-
-import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets;
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
+import com.google.api.services.analyticsreporting.v4.model.*;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.GeneralSecurityException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.List;
+
+import static java.util.Arrays.asList;
+
 
 public class Combined {
+	private String accessToken;
+	private String refreshToken;
+	private String viewID;
 
-	private String ACCESS_TOKEN;
-	private String REFRESH_TOKEN;
-	private String VIEW_ID;
-	
-	private final String CLIENT_SECRET = "client_secrets.json";
-	private final String APPLICATION_NAME = "TheLandscape.io";
-	private NetHttpTransport HTTP_TRANSPORT;
-	private JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
-	
+	private NetHttpTransport httpTransport;
+	private JsonFactory jsonFactory = GsonFactory.getDefaultInstance();
+
 	public void setAccessToken(String accessToken){
-		this.ACCESS_TOKEN = accessToken;
+		this.accessToken = accessToken;
 	}
-	
+
 	public String getAccessToken(){
-		return this.ACCESS_TOKEN;
+		return this.accessToken;
 	}
-	
+
 	public void setRefreshToken(String refreshToken){
-		this.REFRESH_TOKEN = refreshToken;
+		this.refreshToken = refreshToken;
 	}
-	
+
 	public String getRefreshToken(){
-		return this.REFRESH_TOKEN;
+		return this.refreshToken;
 	}
 
 	public void setViewID(String viewID){
-		this.VIEW_ID = viewID;
+		this.viewID = viewID;
 	}
-	
-	public String getViewID(){
-		return this.VIEW_ID;
+
+	private String getViewID(){
+		return this.viewID;
 	}
-	
-	public String run(String accessToken, String refreshToken, String viewID) throws GeneralSecurityException, IOException{
+
+	public String run(String accessToken, String refreshToken) throws GeneralSecurityException, IOException {
 		System.out.println("Running...");
 		GoogleCredential credential = setUpCredentials(accessToken, refreshToken);
 		HttpURLConnection request = setUpRequest(accessToken);
-		checkRequest(request,credential,accessToken);
-		return runQuery(this.getAccessToken(),this.getViewID());
-		
+		checkRequest(request,credential);
+		return runQuery();
+
 	}
-	
+
 	private GoogleCredential setUpCredentials(String accessToken, String refreshToken) throws GeneralSecurityException, IOException{
 		try{
-			HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-			GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(JSON_FACTORY,new InputStreamReader(Combined.class.getResourceAsStream(CLIENT_SECRET)));
+			httpTransport = GoogleNetHttpTransport.newTrustedTransport();
+			String clientSecret = "client_secrets.json";
+			GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(jsonFactory,new InputStreamReader(Combined.class.getResourceAsStream(clientSecret)));
 			GoogleCredential credential = new GoogleCredential.Builder()
-				.setClientSecrets(clientSecrets)
-				.setTransport(HTTP_TRANSPORT)
-				.setJsonFactory(JSON_FACTORY)
-				.build();
-					
+					.setClientSecrets(clientSecrets)
+					.setTransport(httpTransport)
+					.setJsonFactory(jsonFactory)
+					.build();
+
 			credential.setAccessToken(accessToken);
 			credential.setRefreshToken(refreshToken);
 			System.out.println("We set up credentials!");
@@ -100,7 +90,7 @@ public class Combined {
 			return null;
 		}
 	}
-	
+
 	private HttpURLConnection setUpRequest(String accessToken) throws GeneralSecurityException, IOException{
 		try{
 			String token_check_url = "https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=" + accessToken;
@@ -115,17 +105,17 @@ public class Combined {
 			return null;
 		}
 	}
-	
-	private String checkRequest(HttpURLConnection request, GoogleCredential credential, String accessToken) throws GeneralSecurityException, IOException{
+
+	private String checkRequest(HttpURLConnection request, GoogleCredential credential) throws GeneralSecurityException, IOException{
 		try{
 			request.getContent();
 			JsonParser jp = new JsonParser();
 			JsonElement root = jp.parse(new InputStreamReader((InputStream) request.getContent()));
 			JsonObject rootobj = root.getAsJsonObject();
 			int exp_time = rootobj.get("expires_in").getAsInt();
-			
+
 			System.out.println("We got token info!");
-			
+
 			// If token is not expired but has 60 seconds or less left, refresh. Anything more and we just return the token we started with.
 			if(exp_time <= 60){
 				System.out.println("Token is going to expire in less than 60 seconds. Sending token to refresh()");
@@ -135,7 +125,7 @@ public class Combined {
 				System.out.println("Token is fine! Returning original access token");
 				return this.getAccessToken();
 			}
-			
+
 		}catch(IOException e){
 			// We received a request error, send to refresh
 			System.out.println("We received an error, Most likely expired! Sending token to refresh()");
@@ -143,13 +133,13 @@ public class Combined {
 			if(newToken == null){
 				System.out.println("Failed to get new token");
 				return null;
-			}else{				
+			}else{
 				this.setAccessToken(newToken);
 				return this.getAccessToken();
 			}
 		}
 	}
-	
+
 	private String refreshAccessToken(GoogleCredential credential) throws IOException{
 		try{
 			System.out.println("Running refreshAccessToken and returning a new Access Token!");
@@ -162,11 +152,11 @@ public class Combined {
 			return null;
 		}
 	}
-	
-	private String runQuery(String accessToken, String viewID) throws GeneralSecurityException, IOException{
+
+	private String runQuery() throws GeneralSecurityException, IOException{
 		try{
 			System.out.println("Trying to run the query!");
-			AnalyticsReporting service = initializeAnalyticsReporting(accessToken);
+			AnalyticsReporting service = initializeAnalyticsReporting(this.getAccessToken());
 			GetReportsResponse response = getReport(service);
 			printResponse(response,this.getViewID());
 			return "Ran";
@@ -175,12 +165,13 @@ public class Combined {
 			return ("Error : " + e.getMessage());
 		}
 	}
-	
+
 	private AnalyticsReporting initializeAnalyticsReporting(String accessToken) throws GeneralSecurityException, IOException {
-		HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
+		httpTransport = GoogleNetHttpTransport.newTrustedTransport();
 		Credential credential = new Credential(BearerToken.authorizationHeaderAccessMethod()).setAccessToken(accessToken);
-		return new AnalyticsReporting.Builder(HTTP_TRANSPORT, JSON_FACTORY, credential).setApplicationName(APPLICATION_NAME).build();
-	  }
+		String appName = "TheLandscape.io";
+		return new AnalyticsReporting.Builder(httpTransport, jsonFactory, credential).setApplicationName(appName).build();
+	}
 
 	private GetReportsResponse getReport(AnalyticsReporting service) throws IOException {
 		DateRange dateRange = new DateRange();
@@ -188,31 +179,29 @@ public class Combined {
 		dateRange.setEndDate("today");
 
 		Metric sessions = new Metric()
-			.setExpression("ga:sessions")
-			.setAlias("sessions");
-		
+				.setExpression("ga:sessions")
+				.setAlias("sessions");
+
 		Dimension landingpage = new Dimension()
-			.setName("ga:landingPagePath");
-		
+				.setName("ga:landingPagePath");
+
 		Dimension medium = new Dimension()
-		.setName("ga:medium");
-		
+				.setName("ga:medium");
+
 		ReportRequest request = new ReportRequest()
-			.setViewId(this.VIEW_ID)
-			.setDateRanges(Arrays.asList(dateRange))
-			.setDimensions(Arrays.asList(landingpage,medium))
-			.setMetrics(Arrays.asList(sessions))
-			.setFiltersExpression("ga:medium==organic");
-		
-		ArrayList<ReportRequest> requests = new ArrayList<ReportRequest>();
+				.setViewId(this.viewID)
+				.setDateRanges(Collections.singletonList(dateRange))
+				.setDimensions(asList(landingpage,medium))
+				.setMetrics(Collections.singletonList(sessions))
+				.setFiltersExpression("ga:medium==organic");
+
+		ArrayList<ReportRequest> requests = new ArrayList<>();
 		requests.add(request);
 
 		GetReportsRequest getReport = new GetReportsRequest()
-			.setReportRequests(requests);
+				.setReportRequests(requests);
 
-		GetReportsResponse response = service.reports().batchGet(getReport).execute();
-
-		return response;
+		return service.reports().batchGet(getReport).execute();
 	}
 
 	private void printResponse(GetReportsResponse response,String viewID) {
@@ -226,7 +215,7 @@ public class Combined {
 				System.out.println("No data found for " + viewID);
 				return;
 			}
-				
+
 			for (ReportRow row: rows) {
 				List<String> dimensions = row.getDimensions();
 				List<DateRangeValues> metrics = row.getMetrics();
@@ -235,8 +224,7 @@ public class Combined {
 					System.out.println(dimensionHeaders.get(i) + ": " + dimensions.get(i));
 				}
 
-				for (int j = 0; j < metrics.size(); j++) {
-					DateRangeValues values = metrics.get(j);
+				for (DateRangeValues values : metrics) {
 					for (int k = 0; k < values.getValues().size() && k < metricHeaders.size(); k++) {
 						System.out.println(metricHeaders.get(k).getName() + ": " + values.getValues().get(k));
 					}
@@ -249,25 +237,24 @@ public class Combined {
 			cal.add(Calendar.MONTH, -1);
 			String lastMonthDate = dateFormat.format(cal.getTime());
 			System.out.println("From " + lastMonthDate + " to " + currentDate);
-  		}
+		}
 	}
 
-	
-	
+
+
 	public static void main(String[] args) throws GeneralSecurityException, IOException {
-		
+
 		Combined analytics = new Combined();
-		
+
 		analytics.setAccessToken("");
 		analytics.setRefreshToken("");
 		analytics.setViewID("");
-		
+
 		String accessToken = analytics.getAccessToken();
 		String refreshToken = analytics.getRefreshToken();
-		String viewID = analytics.getViewID();
-		
-		analytics.run(accessToken,refreshToken,viewID);
-		
+
+		analytics.run(accessToken,refreshToken);
+
 	}
 
 }
